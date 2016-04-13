@@ -299,6 +299,18 @@ class Excel extends \yii\base\Widget
 	 * instance. If this property is not set, the "formatter" application component will be used.
 	 */
 	public $formatter;
+	/**
+	 * @var boolean to set bold text in first row
+	 */
+	public $boldHeader = true;
+	/**
+	 * @var boolean to set auto-size for columns
+	 */
+	public $autoSize = true;
+	/**
+	 * @var boolean to set word-wrapping in all cells
+	 */
+	public $wordWrap = true;
 	
 	/**
 	 * (non-PHPdoc)
@@ -588,37 +600,22 @@ class Excel extends \yii\base\Widget
 		
 		if ($sheetCount > 1) {
 			foreach ($objectPhpExcel->getSheetNames() as $sheetIndex => $sheetName) {
-				if (isset($this->getOnlySheet) && $this->getOnlySheet != null) {
-					if(!$objectPhpExcel->getSheetByName($this->getOnlySheet)) {
-						return $sheetDatas;
-					}
-					$objectPhpExcel->setActiveSheetIndexByName($this->getOnlySheet);
-					$indexed = $this->getOnlySheet;
-					$sheetDatas[$indexed] = $objectPhpExcel->getActiveSheet()->toArray(null, true, true, true);
-					if ($this->setFirstRecordAsKeys) {
-						$sheetDatas[$indexed] = $this->executeArrayLabel($sheetDatas[$indexed]);
-					}
-					if (!empty($this->getOnlyRecordByIndex)) {
-						$sheetDatas[$indexed] = $this->executeGetOnlyRecords($sheetDatas[$indexed], $this->getOnlyRecordByIndex);
-					}
-					if (!empty($this->leaveRecordByIndex)) {
-						$sheetDatas[$indexed] = $this->executeLeaveRecords($sheetDatas[$indexed], $this->leaveRecordByIndex);
-					}
-					return $sheetDatas[$indexed];
-				} else {
-					$objectPhpExcel->setActiveSheetIndexByName($sheetName);
-					$indexed = $this->setIndexSheetByName==true ? $sheetName : $sheetIndex;
-					$sheetDatas[$indexed] = $objectPhpExcel->getActiveSheet()->toArray(null, true, true, true);
-					if ($this->setFirstRecordAsKeys) {
-						$sheetDatas[$indexed] = $this->executeArrayLabel($sheetDatas[$indexed]);
-					}
-					if (!empty($this->getOnlyRecordByIndex) && isset($this->getOnlyRecordByIndex[$indexed]) && is_array($this->getOnlyRecordByIndex[$indexed])) {
-						$sheetDatas = $this->executeGetOnlyRecords($sheetDatas, $this->getOnlyRecordByIndex[$indexed]);
-					}
-					if (!empty($this->leaveRecordByIndex) && isset($this->leaveRecordByIndex[$indexed]) && is_array($this->leaveRecordByIndex[$indexed])) {
-						$sheetDatas[$indexed] = $this->executeLeaveRecords($sheetDatas[$indexed], $this->leaveRecordByIndex[$indexed]);
-					}
+				$objectPhpExcel->setActiveSheetIndexByName($sheetName);
+				$indexed = $this->setIndexSheetByName==true ? $sheetName : $sheetIndex;
+				$sheetDatas[$indexed] = $objectPhpExcel->getActiveSheet()->toArray(null, true, true, true);
+				if ($this->setFirstRecordAsKeys) {
+					$sheetDatas[$indexed] = $this->executeArrayLabel($sheetDatas[$indexed]);
 				}
+				if (!empty($this->getOnlyRecordByIndex) && isset($this->getOnlyRecordByIndex[$indexed]) && is_array($this->getOnlyRecordByIndex[$indexed])) {
+					$sheetDatas = $this->executeGetOnlyRecords($sheetDatas, $this->getOnlyRecordByIndex[$indexed]);
+				}
+				if (!empty($this->leaveRecordByIndex) && isset($this->leaveRecordByIndex[$indexed]) && is_array($this->leaveRecordByIndex[$indexed])) {
+					$sheetDatas[$indexed] = $this->executeLeaveRecords($sheetDatas[$indexed], $this->leaveRecordByIndex[$indexed]);
+				}
+			}
+			if (isset($this->getOnlySheet) && $this->getOnlySheet != null) {
+				$indexed = $this->setIndexSheetByName==true ? $this->getOnlySheet : $objectPhpExcel->getIndex($objectPhpExcel->getSheetByName($this->getOnlySheet));
+				return $sheetDatas[$indexed];
 			}
 		} else {
 			$sheetDatas = $objectPhpExcel->getActiveSheet()->toArray(null, true, true, true);
@@ -644,37 +641,71 @@ class Excel extends \yii\base\Widget
 	{
 		if ($this->mode == 'export') 
 		{
-	    	$sheet = new \PHPExcel();
-	    	
-	    	if (!isset($this->models))
-	    		throw new InvalidConfigException('Config models must be set');
-	    	
-	    	if (isset($this->properties))
-	    	{
-	    		$this->properties($sheet, $this->properties);
-	    	}
-	    	
-	    	if ($this->isMultipleSheet) {
-	    		$index = 0;
-	    		$worksheet = [];
-	    		foreach ($this->models as $title => $models) {
-	    			$sheet->createSheet($index);
-	    			$sheet->getSheet($index)->setTitle($title);
-	    			$worksheet[$index] = $sheet->getSheet($index);
-	    			$columns = isset($this->columns[$title]) ? $this->columns[$title] : [];
-	    			$headers = isset($this->headers[$title]) ? $this->headers[$title] : [];
-	    			$this->executeColumns($worksheet[$index], $models, $this->populateColumns($columns), $headers);
-	    			$index++;
-	    		}
-	    	} else {
-	    		$worksheet = $sheet->getActiveSheet();
-	    		$this->executeColumns($worksheet, $this->models, isset($this->columns) ? $this->populateColumns($this->columns) : [], isset($this->headers) ? $this->headers : []);
-	    	}
-	    	
-	    	if ($this->asAttachment) {
-	    		$this->setHeaders();
-	    	}
-	    	$this->writeFile($sheet);
+                        $sheet = new \PHPExcel();
+
+                        if (!isset($this->models))
+                                throw new InvalidConfigException('Config models must be set');
+
+                        if (isset($this->properties))
+                        {
+                                $this->properties($sheet, $this->properties);
+                        }
+
+                        if ($this->isMultipleSheet) {
+                                $index = 0;
+                                $worksheet = [];
+                                foreach ($this->models as $title => $models) {
+                                        $sheet->createSheet($index);
+                                        $sheet->getSheet($index)->setTitle($title);
+                                        $worksheet[$index] = $sheet->getSheet($index);
+                                        $columns = isset($this->columns[$title]) ? $this->columns[$title] : [];
+                                        $headers = isset($this->headers[$title]) ? $this->headers[$title] : [];
+                                        $this->executeColumns($worksheet[$index], $models, $this->populateColumns($columns), $headers);
+                                        $index++;
+                                }
+                        } else {
+                                $worksheet = $sheet->getActiveSheet();
+                                $this->executeColumns($worksheet, $this->models, isset($this->columns) ? $this->populateColumns($this->columns) : [], isset($this->headers) ? $this->headers : []);
+                        }
+
+                        if ($this->asAttachment) {
+                                $this->setHeaders();
+                        }
+                        
+                        // BOLD
+                        if ($this->boldHeader){
+                                for ($i=0; $i<count($sheet->getAllSheets()); $i++){
+                                        $sheet->getSheet($i)->getStyle("A1".":".$sheet->getSheet($i)->getHighestDataColumn()."1")->getFont()->setBold(true);
+                                }
+                        }
+                        // AUTOSIZE
+                        if ($this->autoSize){
+                                for ($i=0; $i<count($sheet->getAllSheets()); $i++){
+                                        foreach (range('A', $sheet->getSheet($i)->getHighestDataColumn()) as $col) {
+                                                $sheet->getSheet($i)
+                                                        ->getColumnDimension($col)
+                                                        ->setAutoSize(true);
+                                        }
+                                }
+                        }
+                        // WORD WRAP
+                        if ($this->wordWrap){
+                                for ($i=0; $i<count($sheet->getAllSheets()); $i++){
+                                        $lastRow = $sheet->getSheet($i)->getHighestRow();
+                                        $lastCol = $sheet->getSheet($i)->getHighestDataColumn();
+                                        foreach (range('A', $lastCol) as $col) {
+                                                for ($row = 1; $row <= $lastRow; $row++){
+                                                        $sheet->getSheet($i)
+                                                            ->getStyle($col.$row)
+                                                            ->getAlignment()
+                                                            ->setWrapText(true);
+                                                }
+                                        } 
+                                } 
+                        } 
+                        
+                        
+                        $this->writeFile($sheet);
 		} 
 		elseif ($this->mode == 'import') 
 		{
